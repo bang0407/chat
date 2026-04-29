@@ -43,9 +43,16 @@
             background: #5865f2; color: white;
             border: none; border-radius: 8px;
             cursor: pointer; font-weight: bold;
+            margin-bottom: 8px;
         }
         #login-box button:hover { background: #4752c4; }
+        #login-box button.secondary {
+            background: transparent; color: #b9bbbe;
+            margin-bottom: 0;
+        }
+        #login-box button.secondary:hover { color: white; background: transparent; }
         #login-error { color: #ed4245; font-size: 13px; margin-top: 8px; min-height: 18px; }
+        .form-title { color: white; font-size: 20px; margin-bottom: 20px; font-weight: bold; }
         
         /* 메인 레이아웃 */
         #app { display: none; height: 100vh; height: 100dvh; }
@@ -61,6 +68,11 @@
             font-weight: bold; color: white;
             display: flex; justify-content: space-between; align-items: center;
         }
+        #logout-btn {
+            background: none; border: none; color: #b9bbbe;
+            cursor: pointer; font-size: 16px;
+        }
+        #logout-btn:hover { color: white; }
         #sidebar-content { flex: 1; overflow-y: auto; }
         
         .section { padding: 8px 12px; }
@@ -83,18 +95,20 @@
         }
         .item:hover { background: #36393f; color: #dcddde; }
         .item.active { background: #404249; color: white; }
-        .item .icon { width: 18px; text-align: center; }
+        .item .icon { width: 18px; text-align: center; flex-shrink: 0; }
+        .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .item .count { 
-            margin-left: auto; font-size: 11px; 
+            font-size: 11px; 
             background: #5865f2; color: white;
             padding: 1px 6px; border-radius: 8px;
+            flex-shrink: 0;
         }
-        .lock-icon { font-size: 11px; opacity: 0.6; }
+        .lock-icon { font-size: 11px; opacity: 0.6; flex-shrink: 0; }
         
         /* 메인 콘텐츠 */
         #main {
             flex: 1; display: flex; flex-direction: column;
-            background: #36393f;
+            background: #36393f; min-width: 0;
         }
         #main-header {
             padding: 12px 16px; background: #36393f;
@@ -105,7 +119,6 @@
         #main-header h2 { color: white; font-size: 16px; }
         #main-header .user-count { font-size: 12px; color: #8e9297; }
         
-        /* 모바일 메뉴 버튼 */
         #menu-btn {
             display: none; background: none; border: none;
             color: white; font-size: 24px; cursor: pointer;
@@ -120,6 +133,7 @@
         #welcome {
             text-align: center; color: #8e9297;
             margin-top: 50px; font-size: 14px;
+            line-height: 1.8;
         }
         
         .msg-wrap { margin: 8px 0; display: flex; flex-direction: column; }
@@ -144,7 +158,7 @@
             padding: 4px 0; margin: 8px 0;
         }
         
-        /* 입력 중 표시 */
+        /* 입력 중 */
         #typing-indicator {
             padding: 0 16px; height: 20px;
             font-size: 12px; color: #b9bbbe; font-style: italic;
@@ -219,12 +233,14 @@
     </style>
 </head>
 <body>
-    <!-- 로그인 -->
+    <!-- 로그인/회원가입 -->
     <div id="login">
         <div id="login-box">
-            <h2>💬 채팅</h2>
+            <div class="form-title" id="form-title">💬 로그인</div>
             <input id="nickname-input" placeholder="닉네임 (12자 이내)" maxlength="12">
-            <button onclick="login()">입장</button>
+            <input id="password-input" type="password" placeholder="비밀번호 (4자 이상)">
+            <button id="primary-btn" onclick="submitForm()">로그인</button>
+            <button class="secondary" onclick="toggleMode()" id="toggle-btn">계정이 없나요? 회원가입</button>
             <div id="login-error"></div>
         </div>
     </div>
@@ -236,6 +252,7 @@
         <div id="sidebar">
             <div id="sidebar-header">
                 <span id="my-nick">닉네임</span>
+                <button id="logout-btn" onclick="logout()" title="로그아웃">⏻</button>
             </div>
             <div id="sidebar-content">
                 <div class="section">
@@ -256,7 +273,7 @@
         
         <div id="main">
             <div id="main-header">
-                <div style="display:flex; align-items:center;">
+                <div style="display:flex; align-items:center; min-width:0;">
                     <button id="menu-btn" onclick="toggleSidebar()">☰</button>
                     <h2 id="current-room-name">방을 선택하세요</h2>
                 </div>
@@ -310,27 +327,80 @@
         let typingTimer = null;
         let isTyping = false;
         let typingUsers = new Set();
-
-        // 로그인
-        function login() {
-            const nick = document.getElementById('nickname-input').value.trim();
-            if (!nick) {
-                document.getElementById('login-error').textContent = '닉네임을 입력하세요';
-                return;
+        let isLoginMode = true;
+        
+        // 자동 로그인 (저장된 정보로)
+        window.addEventListener('load', () => {
+            const savedNick = localStorage.getItem('nick');
+            const savedPw = localStorage.getItem('pw');
+            if (savedNick && savedPw) {
+                document.getElementById('nickname-input').value = savedNick;
+                document.getElementById('password-input').value = savedPw;
+                submitForm();
             }
+        });
+
+        function toggleMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('form-title').textContent = isLoginMode ? '💬 로그인' : '✨ 회원가입';
+            document.getElementById('primary-btn').textContent = isLoginMode ? '로그인' : '회원가입';
+            document.getElementById('toggle-btn').textContent = isLoginMode 
+                ? '계정이 없나요? 회원가입' 
+                : '이미 계정이 있나요? 로그인';
+            document.getElementById('login-error').textContent = '';
+        }
+
+        async function submitForm() {
+            const nick = document.getElementById('nickname-input').value.trim();
+            const pw = document.getElementById('password-input').value;
+            const errEl = document.getElementById('login-error');
             
+            if (!nick) { errEl.textContent = '닉네임을 입력하세요'; return; }
+            if (pw.length < 4) { errEl.textContent = '비밀번호는 4자 이상'; return; }
+            
+            const url = isLoginMode ? '/api/login' : '/api/register';
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({nickname: nick, password: pw})
+                });
+                const data = await res.json();
+                
+                if (!res.ok) {
+                    errEl.textContent = data.error || '오류가 발생했습니다';
+                    return;
+                }
+                
+                if (!isLoginMode) {
+                    // 회원가입 성공 -> 자동 로그인
+                    isLoginMode = true;
+                    await submitForm();
+                    return;
+                }
+                
+                // 로그인 성공
+                localStorage.setItem('nick', nick);
+                localStorage.setItem('pw', pw);
+                myNick = nick;
+                connectSocket();
+            } catch(e) {
+                errEl.textContent = '네트워크 오류';
+            }
+        }
+        
+        function logout() {
+            if (!confirm('로그아웃 하시겠습니까?')) return;
+            localStorage.removeItem('nick');
+            localStorage.removeItem('pw');
+            location.reload();
+        }
+        
+        function connectSocket() {
             socket = io();
             
             socket.on('connect', () => {
-                socket.emit('login', { nickname: nick });
-            });
-            
-            socket.on('login_error', (msg) => {
-                document.getElementById('login-error').textContent = msg;
-            });
-            
-            socket.on('login_success', (data) => {
-                myNick = data.nickname;
+                socket.emit('connect_user', { nickname: myNick });
                 document.getElementById('login').style.display = 'none';
                 document.getElementById('app').style.display = 'flex';
                 document.getElementById('my-nick').textContent = '👤 ' + myNick;
@@ -340,17 +410,13 @@
                 }
             });
             
-            setupSocketHandlers();
-        }
-        
-        function setupSocketHandlers() {
-            socket.on('user_list', (list) => {
-                renderUserList(list);
+            socket.on('force_logout', (msg) => {
+                alert(msg);
+                logout();
             });
             
-            socket.on('room_list', (list) => {
-                renderRoomList(list);
-            });
+            socket.on('user_list', (list) => renderUserList(list));
+            socket.on('room_list', (list) => renderRoomList(list));
             
             socket.on('room_created', (data) => {
                 hideCreateRoom();
@@ -368,6 +434,15 @@
                 typingUsers.clear();
                 updateTypingIndicator();
                 hideSidebarMobile();
+                
+                // 이전 메시지 표시
+                if (data.history && data.history.length > 0) {
+                    addSystem('━━ 이전 대화 ━━');
+                    data.history.forEach(m => {
+                        addMessage(m.nickname, m.msg);
+                    });
+                    addSystem('━━ 새 메시지 ━━');
+                }
             });
             
             socket.on('join_error', (msg) => {
@@ -375,9 +450,7 @@
                 hidePwModal();
             });
             
-            socket.on('error_msg', (msg) => {
-                alert(msg);
-            });
+            socket.on('error_msg', (msg) => alert(msg));
             
             socket.on('message', (data) => {
                 addMessage(data.nickname, data.msg);
@@ -395,22 +468,11 @@
                 }
             });
             
-            socket.on('system', (msg) => {
-                addSystem(msg);
-            });
-            
-            socket.on('user_count', (count) => {
-                if (currentRoomType === 'room') {
-                    document.getElementById('current-user-count').textContent = `👥 ${count}명`;
-                }
-            });
+            socket.on('system', (msg) => addSystem(msg));
             
             socket.on('typing', (data) => {
-                if (data.typing) {
-                    typingUsers.add(data.nickname);
-                } else {
-                    typingUsers.delete(data.nickname);
-                }
+                if (data.typing) typingUsers.add(data.nickname);
+                else typingUsers.delete(data.nickname);
                 updateTypingIndicator();
             });
         }
@@ -427,7 +489,7 @@
                 item.className = 'item' + (room.id === currentRoom ? ' active' : '');
                 item.innerHTML = `
                     <span class="icon">#</span>
-                    <span>${escapeHtml(room.name)}</span>
+                    <span class="name">${escapeHtml(room.name)}</span>
                     ${room.has_password ? '<span class="lock-icon">🔒</span>' : ''}
                     <span class="count">${room.user_count}</span>
                 `;
@@ -445,10 +507,9 @@
                 const item = document.createElement('div');
                 item.className = 'item';
                 item.innerHTML = `
-                    <span class="icon">●</span>
-                    <span>${escapeHtml(user.nickname)}</span>
+                    <span class="icon" style="color:#3ba55c;">●</span>
+                    <span class="name">${escapeHtml(user.nickname)}</span>
                 `;
-                item.querySelector('.icon').style.color = '#3ba55c';
                 item.onclick = () => startDm(user.nickname);
                 div.appendChild(item);
             });
@@ -507,7 +568,6 @@
             input.value = '';
             input.focus();
             
-            // 입력 중 끄기
             if (isTyping) {
                 isTyping = false;
                 socket.emit('typing', { typing: false });
@@ -545,15 +605,10 @@
         function updateTypingIndicator() {
             const div = document.getElementById('typing-indicator');
             const arr = Array.from(typingUsers);
-            if (arr.length === 0) {
-                div.textContent = '';
-            } else if (arr.length === 1) {
-                div.textContent = `${arr[0]}님이 입력 중...`;
-            } else if (arr.length === 2) {
-                div.textContent = `${arr[0]}, ${arr[1]}님이 입력 중...`;
-            } else {
-                div.textContent = `${arr.length}명이 입력 중...`;
-            }
+            if (arr.length === 0) div.textContent = '';
+            else if (arr.length === 1) div.textContent = `${arr[0]}님이 입력 중...`;
+            else if (arr.length === 2) div.textContent = `${arr[0]}, ${arr[1]}님이 입력 중...`;
+            else div.textContent = `${arr.length}명이 입력 중...`;
         }
         
         function playDing() {
@@ -587,15 +642,12 @@
             document.getElementById('sidebar-overlay').classList.remove('show');
         }
         
-        // 입력 이벤트
         document.getElementById('msg').addEventListener('input', () => {
             if (!currentRoom) return;
-            
             if (!isTyping) {
                 isTyping = true;
                 socket.emit('typing', { typing: true });
             }
-            
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 isTyping = false;
@@ -607,7 +659,10 @@
             if (e.key === 'Enter') sendMsg();
         });
         document.getElementById('nickname-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') login();
+            if (e.key === 'Enter') document.getElementById('password-input').focus();
+        });
+        document.getElementById('password-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitForm();
         });
         document.getElementById('room-name').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') createRoom();
