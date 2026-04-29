@@ -2,3 +2,5 @@ flask
 flask-socketio
 gunicorn
 eventlet
+psycopg2-binary
+werkzeug
