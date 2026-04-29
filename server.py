@@ -100,6 +100,10 @@ def get_recent_messages(room_id, limit=50):
         (room_id, limit),
         fetch=True
     )
+    # Decimal -> float 변환 (JSON 직렬화 위해)
+    for m in msgs:
+        if m.get('time') is not None:
+            m['time'] = float(m['time'])
     # 오래된 것부터 정렬
     msgs.reverse()
     return msgs
