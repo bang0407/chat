@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>오픈채팅</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 10px; }
+        #chat { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; background: #f9f9f9; }
+        .msg { margin: 5px 0; }
+        .system { color: #888; font-style: italic; }
+        .nick { font-weight: bold; color: #2a72e5; }
+        #inputs { display: flex; gap: 5px; margin-top: 10px; }
+        #msg { flex: 1; padding: 8px; }
+        button { padding: 8px 16px; cursor: pointer; }
+        #nickname { padding: 5px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h2>오픈채팅</h2>
+    <div>닉네임: <input id="nickname" placeholder="닉네임" value="익명"></div>
+    <div id="chat"></div>
+    <div id="inputs">
+        <input id="msg" placeholder="메시지 입력..." autocomplete="off">
+        <button onclick="sendMsg()">보내기</button>
+    </div>
+    <script>
+        const socket = io();
+        const chat = document.getElementById('chat');
+        const msgInput = document.getElementById('msg');
+        const nickInput = document.getElementById('nickname');
+
+        socket.on('message', (data) => {
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<span class="nick">${data.nickname}</span>: ${data.msg}`;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        socket.on('system', (msg) => {
+            const div = document.createElement('div');
+            div.className = 'msg system';
+            div.textContent = msg;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        function sendMsg() {
+            const msg = msgInput.value.trim();
+            if (!msg) return;
+            socket.emit('message', { nickname: nickInput.value || '익명', msg: msg });
+            msgInput.value = '';
+        }
+
+        msgInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMsg();
+        });
+    </script>
+</body>
+</html>
