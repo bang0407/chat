@@ -3,225 +3,517 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#2a72e5">
-    <title>오픈채팅</title>
+    <meta name="theme-color" content="#5865f2">
+    <title>채팅</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
         html, body { 
-            margin: 0; padding: 0; height: 100%; 
+            height: 100%; 
             font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
-            background: #b2c7d9;
+            background: #36393f;
+            color: #dcddde;
             overflow: hidden;
         }
+        button, input { font-family: inherit; }
         
-        /* 닉네임 입력 화면 */
+        /* 로그인 화면 */
         #login {
-            position: fixed; inset: 0; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: fixed; inset: 0;
+            background: linear-gradient(135deg, #5865f2 0%, #7c3aed 100%);
             display: flex; align-items: center; justify-content: center;
-            z-index: 100;
+            z-index: 200;
         }
         #login-box {
-            background: white; padding: 30px; border-radius: 20px;
-            width: 85%; max-width: 320px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            background: #36393f; padding: 30px; border-radius: 12px;
+            width: 85%; max-width: 360px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
             text-align: center;
         }
-        #login-box h2 { margin: 0 0 20px; color: #333; }
+        #login-box h2 { margin-bottom: 20px; color: white; }
         #login-box input {
             width: 100%; padding: 12px; font-size: 16px;
-            border: 2px solid #e0e0e0; border-radius: 10px;
-            outline: none; margin-bottom: 15px;
+            background: #202225; color: white;
+            border: 1px solid #202225; border-radius: 8px;
+            outline: none; margin-bottom: 12px;
         }
-        #login-box input:focus { border-color: #667eea; }
+        #login-box input:focus { border-color: #5865f2; }
         #login-box button {
             width: 100%; padding: 12px; font-size: 16px;
-            background: #667eea; color: white;
-            border: none; border-radius: 10px;
+            background: #5865f2; color: white;
+            border: none; border-radius: 8px;
             cursor: pointer; font-weight: bold;
         }
+        #login-box button:hover { background: #4752c4; }
+        #login-error { color: #ed4245; font-size: 13px; margin-top: 8px; min-height: 18px; }
         
-        /* 메인 채팅 화면 */
-        #app { 
-            display: flex; flex-direction: column; 
-            height: 100vh; height: 100dvh;
-        }
+        /* 메인 레이아웃 */
+        #app { display: none; height: 100vh; height: 100dvh; }
         
-        /* 헤더 */
-        #header {
-            background: #2a72e5; color: white;
-            padding: 12px 16px;
-            display: flex; align-items: center; justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        /* 사이드바 */
+        #sidebar {
+            width: 260px; background: #2f3136;
+            display: flex; flex-direction: column;
             flex-shrink: 0;
         }
-        #header h1 { margin: 0; font-size: 18px; }
-        #header .info { font-size: 12px; opacity: 0.9; }
-        #sound-btn {
-            background: rgba(255,255,255,0.2); border: none; color: white;
-            padding: 6px 10px; border-radius: 15px; font-size: 14px; cursor: pointer;
+        #sidebar-header {
+            padding: 14px; background: #292b2f;
+            font-weight: bold; color: white;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #sidebar-content { flex: 1; overflow-y: auto; }
+        
+        .section { padding: 8px 12px; }
+        .section-title {
+            font-size: 11px; text-transform: uppercase; color: #8e9297;
+            font-weight: bold; padding: 8px 4px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .add-btn {
+            background: none; border: none; color: #8e9297;
+            font-size: 18px; cursor: pointer; padding: 0 4px;
+        }
+        .add-btn:hover { color: white; }
+        
+        .item {
+            padding: 8px 10px; border-radius: 4px; cursor: pointer;
+            color: #8e9297; margin: 1px 0;
+            display: flex; align-items: center; gap: 8px;
+            font-size: 14px;
+        }
+        .item:hover { background: #36393f; color: #dcddde; }
+        .item.active { background: #404249; color: white; }
+        .item .icon { width: 18px; text-align: center; }
+        .item .count { 
+            margin-left: auto; font-size: 11px; 
+            background: #5865f2; color: white;
+            padding: 1px 6px; border-radius: 8px;
+        }
+        .lock-icon { font-size: 11px; opacity: 0.6; }
+        
+        /* 메인 콘텐츠 */
+        #main {
+            flex: 1; display: flex; flex-direction: column;
+            background: #36393f;
+        }
+        #main-header {
+            padding: 12px 16px; background: #36393f;
+            border-bottom: 1px solid #202225;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0;
+        }
+        #main-header h2 { color: white; font-size: 16px; }
+        #main-header .user-count { font-size: 12px; color: #8e9297; }
+        
+        /* 모바일 메뉴 버튼 */
+        #menu-btn {
+            display: none; background: none; border: none;
+            color: white; font-size: 24px; cursor: pointer;
+            margin-right: 10px;
         }
         
         /* 채팅창 */
         #chat {
             flex: 1; overflow-y: auto;
-            padding: 12px; 
-            display: flex; flex-direction: column; gap: 4px;
+            padding: 16px;
+        }
+        #welcome {
+            text-align: center; color: #8e9297;
+            margin-top: 50px; font-size: 14px;
         }
         
-        .msg-wrap { display: flex; flex-direction: column; max-width: 75%; margin: 4px 0; }
-        .msg-wrap.me { align-self: flex-end; align-items: flex-end; }
-        .msg-wrap.other { align-self: flex-start; }
+        .msg-wrap { margin: 8px 0; display: flex; flex-direction: column; }
+        .msg-wrap.me { align-items: flex-end; }
         
-        .nick { font-size: 12px; color: #555; margin-bottom: 2px; padding: 0 4px; }
+        .msg-wrap .nick { 
+            font-size: 12px; color: #b9bbbe; 
+            margin-bottom: 2px; padding: 0 4px;
+        }
         .me .nick { display: none; }
         
         .bubble {
-            padding: 10px 14px; border-radius: 18px;
-            font-size: 15px; line-height: 1.4;
+            max-width: 75%; padding: 10px 14px; border-radius: 12px;
+            font-size: 14px; line-height: 1.4;
             word-break: break-word; white-space: pre-wrap;
         }
-        .other .bubble { background: white; color: #333; border-top-left-radius: 4px; }
-        .me .bubble { background: #ffeb33; color: #333; border-top-right-radius: 4px; }
+        .other .bubble { background: #4f545c; color: white; border-top-left-radius: 4px; }
+        .me .bubble { background: #5865f2; color: white; border-top-right-radius: 4px; }
         
         .system {
-            text-align: center; color: #666; font-size: 12px;
-            background: rgba(255,255,255,0.5); padding: 4px 12px;
-            border-radius: 12px; align-self: center; margin: 8px 0;
+            text-align: center; color: #72767d; font-size: 12px;
+            padding: 4px 0; margin: 8px 0;
+        }
+        
+        /* 입력 중 표시 */
+        #typing-indicator {
+            padding: 0 16px; height: 20px;
+            font-size: 12px; color: #b9bbbe; font-style: italic;
+            display: flex; align-items: center;
         }
         
         /* 입력창 */
         #inputs {
-            display: flex; gap: 8px; padding: 10px;
-            background: white; border-top: 1px solid #ddd;
+            display: flex; gap: 8px; padding: 12px;
+            background: #36393f;
             flex-shrink: 0;
-            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            padding-bottom: calc(12px + env(safe-area-inset-bottom));
         }
         #msg {
-            flex: 1; padding: 10px 14px; font-size: 16px;
-            border: 1px solid #ddd; border-radius: 20px;
+            flex: 1; padding: 11px 14px; font-size: 15px;
+            background: #40444b; color: white;
+            border: none; border-radius: 8px;
             outline: none;
         }
-        #msg:focus { border-color: #2a72e5; }
+        #msg:disabled { opacity: 0.5; }
         #send-btn {
-            padding: 10px 18px; font-size: 15px;
-            background: #2a72e5; color: white;
-            border: none; border-radius: 20px;
+            padding: 11px 18px; font-size: 14px;
+            background: #5865f2; color: white;
+            border: none; border-radius: 8px;
             cursor: pointer; font-weight: bold;
+        }
+        #send-btn:disabled { background: #4f545c; opacity: 0.5; }
+        
+        /* 모달 */
+        .modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            display: none; align-items: center; justify-content: center;
+            z-index: 150; padding: 20px;
+        }
+        .modal.show { display: flex; }
+        .modal-box {
+            background: #36393f; padding: 24px; border-radius: 8px;
+            width: 100%; max-width: 380px;
+        }
+        .modal-box h3 { color: white; margin-bottom: 16px; }
+        .modal-box input {
+            width: 100%; padding: 10px; font-size: 14px;
+            background: #202225; color: white;
+            border: 1px solid #202225; border-radius: 4px;
+            outline: none; margin-bottom: 12px;
+        }
+        .modal-box input:focus { border-color: #5865f2; }
+        .modal-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+        .modal-buttons button {
+            padding: 10px 20px; border: none; border-radius: 4px;
+            cursor: pointer; font-weight: bold; font-size: 14px;
+        }
+        .btn-cancel { background: transparent; color: white; }
+        .btn-confirm { background: #5865f2; color: white; }
+        .btn-confirm:hover { background: #4752c4; }
+        
+        /* 모바일 */
+        @media (max-width: 768px) {
+            #sidebar {
+                position: fixed; top: 0; bottom: 0; left: 0;
+                z-index: 50; transform: translateX(-100%);
+                transition: transform 0.2s;
+            }
+            #sidebar.show { transform: translateX(0); }
+            #menu-btn { display: block; }
+            #sidebar-overlay {
+                position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+                z-index: 40; display: none;
+            }
+            #sidebar-overlay.show { display: block; }
         }
     </style>
 </head>
 <body>
+    <!-- 로그인 -->
     <div id="login">
         <div id="login-box">
-            <h2>💬 오픈채팅</h2>
-            <input id="nickname-input" placeholder="닉네임을 입력하세요" maxlength="12">
-            <button onclick="enterChat()">입장하기</button>
+            <h2>💬 채팅</h2>
+            <input id="nickname-input" placeholder="닉네임 (12자 이내)" maxlength="12">
+            <button onclick="login()">입장</button>
+            <div id="login-error"></div>
         </div>
     </div>
     
-    <div id="app" style="display:none;">
-        <div id="header">
-            <div>
-                <h1>💬 오픈채팅</h1>
-                <div class="info" id="user-info"></div>
+    <!-- 메인 -->
+    <div id="app">
+        <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+        
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <span id="my-nick">닉네임</span>
             </div>
-            <button id="sound-btn" onclick="toggleSound()">🔔</button>
+            <div id="sidebar-content">
+                <div class="section">
+                    <div class="section-title">
+                        <span>채팅방</span>
+                        <button class="add-btn" onclick="showCreateRoom()">+</button>
+                    </div>
+                    <div id="room-list"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">
+                        <span>접속자 (<span id="user-count">0</span>)</span>
+                    </div>
+                    <div id="user-list"></div>
+                </div>
+            </div>
         </div>
-        <div id="chat"></div>
-        <div id="inputs">
-            <input id="msg" placeholder="메시지 입력..." autocomplete="off">
-            <button id="send-btn" onclick="sendMsg()">전송</button>
+        
+        <div id="main">
+            <div id="main-header">
+                <div style="display:flex; align-items:center;">
+                    <button id="menu-btn" onclick="toggleSidebar()">☰</button>
+                    <h2 id="current-room-name">방을 선택하세요</h2>
+                </div>
+                <div class="user-count" id="current-user-count"></div>
+            </div>
+            <div id="chat">
+                <div id="welcome">
+                    👈 왼쪽에서 채팅방을 선택하거나<br>
+                    접속자를 클릭해서 DM을 시작하세요
+                </div>
+            </div>
+            <div id="typing-indicator"></div>
+            <div id="inputs">
+                <input id="msg" placeholder="메시지 입력..." autocomplete="off" disabled>
+                <button id="send-btn" onclick="sendMsg()" disabled>전송</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 방 만들기 모달 -->
+    <div id="create-modal" class="modal">
+        <div class="modal-box">
+            <h3>새 채팅방 만들기</h3>
+            <input id="room-name" placeholder="방 이름 (20자 이내)" maxlength="20">
+            <input id="room-pw" type="password" placeholder="비밀번호 (선택)">
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="hideCreateRoom()">취소</button>
+                <button class="btn-confirm" onclick="createRoom()">만들기</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 비번 입력 모달 -->
+    <div id="pw-modal" class="modal">
+        <div class="modal-box">
+            <h3 id="pw-modal-title">비밀번호 입력</h3>
+            <input id="join-pw" type="password" placeholder="비밀번호">
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="hidePwModal()">취소</button>
+                <button class="btn-confirm" onclick="joinWithPw()">입장</button>
+            </div>
         </div>
     </div>
 
     <script>
         let socket = null;
         let myNick = '';
-        let soundOn = true;
-        let pageVisible = true;
-        let unreadCount = 0;
-        const originalTitle = '오픈채팅';
+        let currentRoom = null;
+        let currentRoomType = null;
+        let pendingJoinRoomId = null;
+        let typingTimer = null;
+        let isTyping = false;
+        let typingUsers = new Set();
 
-        function playDing() {
-            if (!soundOn) return;
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.frequency.value = 880;
-                gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.3);
-            } catch(e) {}
-        }
-        
-        function vibrate() {
-            if ('vibrate' in navigator) navigator.vibrate(100);
-        }
-
-        function toggleSound() {
-            soundOn = !soundOn;
-            document.getElementById('sound-btn').textContent = soundOn ? '🔔' : '🔕';
-        }
-
-        function enterChat() {
-            const input = document.getElementById('nickname-input');
-            const nick = input.value.trim();
-            if (!nick) { alert('닉네임을 입력해주세요'); return; }
-            myNick = nick;
-            document.getElementById('login').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
-            document.getElementById('user-info').textContent = `${nick}님으로 접속 중`;
-            
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
+        // 로그인
+        function login() {
+            const nick = document.getElementById('nickname-input').value.trim();
+            if (!nick) {
+                document.getElementById('login-error').textContent = '닉네임을 입력하세요';
+                return;
             }
             
-            connectSocket();
-        }
-
-        function connectSocket() {
             socket = io();
-
+            
             socket.on('connect', () => {
-                addSystem('채팅 서버에 연결되었습니다');
+                socket.emit('login', { nickname: nick });
             });
-
-            socket.on('disconnect', () => {
-                addSystem('연결이 끊어졌습니다');
+            
+            socket.on('login_error', (msg) => {
+                document.getElementById('login-error').textContent = msg;
             });
-
+            
+            socket.on('login_success', (data) => {
+                myNick = data.nickname;
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('app').style.display = 'flex';
+                document.getElementById('my-nick').textContent = '👤 ' + myNick;
+                
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            });
+            
+            setupSocketHandlers();
+        }
+        
+        function setupSocketHandlers() {
+            socket.on('user_list', (list) => {
+                renderUserList(list);
+            });
+            
+            socket.on('room_list', (list) => {
+                renderRoomList(list);
+            });
+            
+            socket.on('room_created', (data) => {
+                hideCreateRoom();
+                socket.emit('join_room', { room_id: data.id });
+            });
+            
+            socket.on('join_success', (data) => {
+                currentRoom = data.room_id;
+                currentRoomType = data.type;
+                document.getElementById('current-room-name').textContent = data.room_name;
+                document.getElementById('chat').innerHTML = '';
+                document.getElementById('msg').disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                document.getElementById('msg').focus();
+                typingUsers.clear();
+                updateTypingIndicator();
+                hideSidebarMobile();
+            });
+            
+            socket.on('join_error', (msg) => {
+                alert(msg);
+                hidePwModal();
+            });
+            
+            socket.on('error_msg', (msg) => {
+                alert(msg);
+            });
+            
             socket.on('message', (data) => {
                 addMessage(data.nickname, data.msg);
                 
                 if (data.nickname !== myNick) {
                     playDing();
-                    vibrate();
+                    if ('vibrate' in navigator) navigator.vibrate(100);
                     
-                    if (!pageVisible) {
-                        unreadCount++;
-                        document.title = `(${unreadCount}) ${originalTitle}`;
-                        
-                        if ('Notification' in window && Notification.permission === 'granted') {
-                            new Notification(`${data.nickname}`, {
-                                body: data.msg,
-                                tag: 'chat-msg'
-                            });
-                        }
+                    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+                        new Notification(data.nickname, {
+                            body: data.msg,
+                            tag: 'chat-msg'
+                        });
                     }
                 }
             });
-
+            
             socket.on('system', (msg) => {
                 addSystem(msg);
             });
+            
+            socket.on('user_count', (count) => {
+                if (currentRoomType === 'room') {
+                    document.getElementById('current-user-count').textContent = `👥 ${count}명`;
+                }
+            });
+            
+            socket.on('typing', (data) => {
+                if (data.typing) {
+                    typingUsers.add(data.nickname);
+                } else {
+                    typingUsers.delete(data.nickname);
+                }
+                updateTypingIndicator();
+            });
         }
-
+        
+        function renderRoomList(list) {
+            const div = document.getElementById('room-list');
+            div.innerHTML = '';
+            if (list.length === 0) {
+                div.innerHTML = '<div style="color:#72767d; font-size:12px; padding:8px;">방이 없습니다</div>';
+                return;
+            }
+            list.forEach(room => {
+                const item = document.createElement('div');
+                item.className = 'item' + (room.id === currentRoom ? ' active' : '');
+                item.innerHTML = `
+                    <span class="icon">#</span>
+                    <span>${escapeHtml(room.name)}</span>
+                    ${room.has_password ? '<span class="lock-icon">🔒</span>' : ''}
+                    <span class="count">${room.user_count}</span>
+                `;
+                item.onclick = () => joinRoom(room.id, room.has_password, room.name);
+                div.appendChild(item);
+            });
+        }
+        
+        function renderUserList(list) {
+            const div = document.getElementById('user-list');
+            div.innerHTML = '';
+            document.getElementById('user-count').textContent = list.length;
+            list.forEach(user => {
+                if (user.nickname === myNick) return;
+                const item = document.createElement('div');
+                item.className = 'item';
+                item.innerHTML = `
+                    <span class="icon">●</span>
+                    <span>${escapeHtml(user.nickname)}</span>
+                `;
+                item.querySelector('.icon').style.color = '#3ba55c';
+                item.onclick = () => startDm(user.nickname);
+                div.appendChild(item);
+            });
+        }
+        
+        function joinRoom(roomId, hasPassword, roomName) {
+            if (hasPassword) {
+                pendingJoinRoomId = roomId;
+                document.getElementById('pw-modal-title').textContent = `🔒 ${roomName}`;
+                document.getElementById('join-pw').value = '';
+                document.getElementById('pw-modal').classList.add('show');
+                document.getElementById('join-pw').focus();
+            } else {
+                socket.emit('join_room', { room_id: roomId });
+            }
+        }
+        
+        function joinWithPw() {
+            const pw = document.getElementById('join-pw').value;
+            socket.emit('join_room', { room_id: pendingJoinRoomId, password: pw });
+            hidePwModal();
+        }
+        
+        function hidePwModal() {
+            document.getElementById('pw-modal').classList.remove('show');
+        }
+        
+        function startDm(nickname) {
+            socket.emit('start_dm', { nickname: nickname });
+            hideSidebarMobile();
+        }
+        
+        function showCreateRoom() {
+            document.getElementById('room-name').value = '';
+            document.getElementById('room-pw').value = '';
+            document.getElementById('create-modal').classList.add('show');
+            document.getElementById('room-name').focus();
+        }
+        
+        function hideCreateRoom() {
+            document.getElementById('create-modal').classList.remove('show');
+        }
+        
+        function createRoom() {
+            const name = document.getElementById('room-name').value.trim();
+            const pw = document.getElementById('room-pw').value.trim();
+            if (!name) { alert('방 이름을 입력하세요'); return; }
+            socket.emit('create_room', { name: name, password: pw });
+        }
+        
+        function sendMsg() {
+            const input = document.getElementById('msg');
+            const msg = input.value.trim();
+            if (!msg || !currentRoom) return;
+            socket.emit('message', { msg: msg });
+            input.value = '';
+            input.focus();
+            
+            // 입력 중 끄기
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing', { typing: false });
+            }
+        }
+        
         function addMessage(nickname, msg) {
             const chat = document.getElementById('chat');
             const wrap = document.createElement('div');
@@ -240,7 +532,7 @@
             chat.appendChild(wrap);
             chat.scrollTop = chat.scrollHeight;
         }
-
+        
         function addSystem(msg) {
             const chat = document.getElementById('chat');
             const div = document.createElement('div');
@@ -249,29 +541,79 @@
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
         }
-
-        function sendMsg() {
-            const input = document.getElementById('msg');
-            const msg = input.value.trim();
-            if (!msg || !socket) return;
-            socket.emit('message', { nickname: myNick, msg: msg });
-            input.value = '';
-            input.focus();
+        
+        function updateTypingIndicator() {
+            const div = document.getElementById('typing-indicator');
+            const arr = Array.from(typingUsers);
+            if (arr.length === 0) {
+                div.textContent = '';
+            } else if (arr.length === 1) {
+                div.textContent = `${arr[0]}님이 입력 중...`;
+            } else if (arr.length === 2) {
+                div.textContent = `${arr[0]}, ${arr[1]}님이 입력 중...`;
+            } else {
+                div.textContent = `${arr.length}명이 입력 중...`;
+            }
         }
-
+        
+        function playDing() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e) {}
+        }
+        
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('show');
+            document.getElementById('sidebar-overlay').classList.toggle('show');
+        }
+        
+        function hideSidebarMobile() {
+            document.getElementById('sidebar').classList.remove('show');
+            document.getElementById('sidebar-overlay').classList.remove('show');
+        }
+        
+        // 입력 이벤트
+        document.getElementById('msg').addEventListener('input', () => {
+            if (!currentRoom) return;
+            
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing', { typing: true });
+            }
+            
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                isTyping = false;
+                socket.emit('typing', { typing: false });
+            }, 2000);
+        });
+        
         document.getElementById('msg').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMsg();
         });
         document.getElementById('nickname-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') enterChat();
+            if (e.key === 'Enter') login();
         });
-
-        document.addEventListener('visibilitychange', () => {
-            pageVisible = !document.hidden;
-            if (pageVisible) {
-                unreadCount = 0;
-                document.title = originalTitle;
-            }
+        document.getElementById('room-name').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') createRoom();
+        });
+        document.getElementById('join-pw').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinWithPw();
         });
     </script>
 </body>
