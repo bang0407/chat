@@ -1,60 +1,277 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a72e5">
     <title>오픈채팅</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 10px; }
-        #chat { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; background: #f9f9f9; }
-        .msg { margin: 5px 0; }
-        .system { color: #888; font-style: italic; }
-        .nick { font-weight: bold; color: #2a72e5; }
-        #inputs { display: flex; gap: 5px; margin-top: 10px; }
-        #msg { flex: 1; padding: 8px; }
-        button { padding: 8px 16px; cursor: pointer; }
-        #nickname { padding: 5px; margin-bottom: 10px; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+            background: #b2c7d9;
+            overflow: hidden;
+        }
+        
+        /* 닉네임 입력 화면 */
+        #login {
+            position: fixed; inset: 0; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100;
+        }
+        #login-box {
+            background: white; padding: 30px; border-radius: 20px;
+            width: 85%; max-width: 320px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        #login-box h2 { margin: 0 0 20px; color: #333; }
+        #login-box input {
+            width: 100%; padding: 12px; font-size: 16px;
+            border: 2px solid #e0e0e0; border-radius: 10px;
+            outline: none; margin-bottom: 15px;
+        }
+        #login-box input:focus { border-color: #667eea; }
+        #login-box button {
+            width: 100%; padding: 12px; font-size: 16px;
+            background: #667eea; color: white;
+            border: none; border-radius: 10px;
+            cursor: pointer; font-weight: bold;
+        }
+        
+        /* 메인 채팅 화면 */
+        #app { 
+            display: flex; flex-direction: column; 
+            height: 100vh; height: 100dvh;
+        }
+        
+        /* 헤더 */
+        #header {
+            background: #2a72e5; color: white;
+            padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        #header h1 { margin: 0; font-size: 18px; }
+        #header .info { font-size: 12px; opacity: 0.9; }
+        #sound-btn {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            padding: 6px 10px; border-radius: 15px; font-size: 14px; cursor: pointer;
+        }
+        
+        /* 채팅창 */
+        #chat {
+            flex: 1; overflow-y: auto;
+            padding: 12px; 
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        
+        .msg-wrap { display: flex; flex-direction: column; max-width: 75%; margin: 4px 0; }
+        .msg-wrap.me { align-self: flex-end; align-items: flex-end; }
+        .msg-wrap.other { align-self: flex-start; }
+        
+        .nick { font-size: 12px; color: #555; margin-bottom: 2px; padding: 0 4px; }
+        .me .nick { display: none; }
+        
+        .bubble {
+            padding: 10px 14px; border-radius: 18px;
+            font-size: 15px; line-height: 1.4;
+            word-break: break-word; white-space: pre-wrap;
+        }
+        .other .bubble { background: white; color: #333; border-top-left-radius: 4px; }
+        .me .bubble { background: #ffeb33; color: #333; border-top-right-radius: 4px; }
+        
+        .system {
+            text-align: center; color: #666; font-size: 12px;
+            background: rgba(255,255,255,0.5); padding: 4px 12px;
+            border-radius: 12px; align-self: center; margin: 8px 0;
+        }
+        
+        /* 입력창 */
+        #inputs {
+            display: flex; gap: 8px; padding: 10px;
+            background: white; border-top: 1px solid #ddd;
+            flex-shrink: 0;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+        #msg {
+            flex: 1; padding: 10px 14px; font-size: 16px;
+            border: 1px solid #ddd; border-radius: 20px;
+            outline: none;
+        }
+        #msg:focus { border-color: #2a72e5; }
+        #send-btn {
+            padding: 10px 18px; font-size: 15px;
+            background: #2a72e5; color: white;
+            border: none; border-radius: 20px;
+            cursor: pointer; font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h2>오픈채팅</h2>
-    <div>닉네임: <input id="nickname" placeholder="닉네임" value="익명"></div>
-    <div id="chat"></div>
-    <div id="inputs">
-        <input id="msg" placeholder="메시지 입력..." autocomplete="off">
-        <button onclick="sendMsg()">보내기</button>
+    <div id="login">
+        <div id="login-box">
+            <h2>💬 오픈채팅</h2>
+            <input id="nickname-input" placeholder="닉네임을 입력하세요" maxlength="12">
+            <button onclick="enterChat()">입장하기</button>
+        </div>
     </div>
+    
+    <div id="app" style="display:none;">
+        <div id="header">
+            <div>
+                <h1>💬 오픈채팅</h1>
+                <div class="info" id="user-info"></div>
+            </div>
+            <button id="sound-btn" onclick="toggleSound()">🔔</button>
+        </div>
+        <div id="chat"></div>
+        <div id="inputs">
+            <input id="msg" placeholder="메시지 입력..." autocomplete="off">
+            <button id="send-btn" onclick="sendMsg()">전송</button>
+        </div>
+    </div>
+
     <script>
-        const socket = io();
-        const chat = document.getElementById('chat');
-        const msgInput = document.getElementById('msg');
-        const nickInput = document.getElementById('nickname');
+        let socket = null;
+        let myNick = '';
+        let soundOn = true;
+        let pageVisible = true;
+        let unreadCount = 0;
+        const originalTitle = '오픈채팅';
 
-        socket.on('message', (data) => {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = `<span class="nick">${data.nickname}</span>: ${data.msg}`;
-            chat.appendChild(div);
+        function playDing() {
+            if (!soundOn) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 880;
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch(e) {}
+        }
+        
+        function vibrate() {
+            if ('vibrate' in navigator) navigator.vibrate(100);
+        }
+
+        function toggleSound() {
+            soundOn = !soundOn;
+            document.getElementById('sound-btn').textContent = soundOn ? '🔔' : '🔕';
+        }
+
+        function enterChat() {
+            const input = document.getElementById('nickname-input');
+            const nick = input.value.trim();
+            if (!nick) { alert('닉네임을 입력해주세요'); return; }
+            myNick = nick;
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            document.getElementById('user-info').textContent = `${nick}님으로 접속 중`;
+            
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            
+            connectSocket();
+        }
+
+        function connectSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                addSystem('채팅 서버에 연결되었습니다');
+            });
+
+            socket.on('disconnect', () => {
+                addSystem('연결이 끊어졌습니다');
+            });
+
+            socket.on('message', (data) => {
+                addMessage(data.nickname, data.msg);
+                
+                if (data.nickname !== myNick) {
+                    playDing();
+                    vibrate();
+                    
+                    if (!pageVisible) {
+                        unreadCount++;
+                        document.title = `(${unreadCount}) ${originalTitle}`;
+                        
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification(`${data.nickname}`, {
+                                body: data.msg,
+                                tag: 'chat-msg'
+                            });
+                        }
+                    }
+                }
+            });
+
+            socket.on('system', (msg) => {
+                addSystem(msg);
+            });
+        }
+
+        function addMessage(nickname, msg) {
+            const chat = document.getElementById('chat');
+            const wrap = document.createElement('div');
+            wrap.className = 'msg-wrap ' + (nickname === myNick ? 'me' : 'other');
+            
+            const nickDiv = document.createElement('div');
+            nickDiv.className = 'nick';
+            nickDiv.textContent = nickname;
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.textContent = msg;
+            
+            wrap.appendChild(nickDiv);
+            wrap.appendChild(bubble);
+            chat.appendChild(wrap);
             chat.scrollTop = chat.scrollHeight;
-        });
+        }
 
-        socket.on('system', (msg) => {
+        function addSystem(msg) {
+            const chat = document.getElementById('chat');
             const div = document.createElement('div');
-            div.className = 'msg system';
+            div.className = 'system';
             div.textContent = msg;
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
-        });
-
-        function sendMsg() {
-            const msg = msgInput.value.trim();
-            if (!msg) return;
-            socket.emit('message', { nickname: nickInput.value || '익명', msg: msg });
-            msgInput.value = '';
         }
 
-        msgInput.addEventListener('keypress', (e) => {
+        function sendMsg() {
+            const input = document.getElementById('msg');
+            const msg = input.value.trim();
+            if (!msg || !socket) return;
+            socket.emit('message', { nickname: myNick, msg: msg });
+            input.value = '';
+            input.focus();
+        }
+
+        document.getElementById('msg').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMsg();
+        });
+        document.getElementById('nickname-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') enterChat();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            pageVisible = !document.hidden;
+            if (pageVisible) {
+                unreadCount = 0;
+                document.title = originalTitle;
+            }
         });
     </script>
 </body>
