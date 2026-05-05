@@ -18,7 +18,6 @@
         }
         button, input, textarea { font-family: inherit; }
         
-        /* 로그인 */
         #login {
             position: fixed; inset: 0;
             background: linear-gradient(135deg, #5865f2 0%, #7c3aed 100%);
@@ -52,10 +51,8 @@
         }
         #login-error { color: #ed4245; font-size: 13px; margin-top: 8px; min-height: 18px; }
         
-        /* 메인 */
         #app { display: none; height: 100vh; height: 100dvh; }
         
-        /* 사이드바 */
         #sidebar {
             width: 260px; background: #2f3136;
             display: flex; flex-direction: column;
@@ -109,15 +106,8 @@
             font-size: 11px; background: #5865f2; color: white;
             padding: 1px 6px; border-radius: 8px; flex-shrink: 0;
         }
-        .item .user-avatar {
-            width: 24px; height: 24px; border-radius: 50%;
-            background: #4f545c; display: flex; align-items: center; justify-content: center;
-            font-size: 12px; overflow: hidden; flex-shrink: 0;
-        }
-        .item .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .lock-icon { font-size: 11px; opacity: 0.6; }
         
-        /* 메인 */
         #main {
             flex: 1; display: flex; flex-direction: column;
             background: #36393f; min-width: 0;
@@ -141,7 +131,6 @@
             margin-right: 10px;
         }
         
-        /* 채팅창 */
         #chat {
             flex: 1; overflow-y: auto;
             padding: 16px;
@@ -196,8 +185,8 @@
             cursor: pointer; font-size: 14px; padding: 4px;
             opacity: 0; transition: opacity 0.15s;
         }
-        .me .msg-wrap:hover .delete-btn,
-        .me:hover .delete-btn { opacity: 1; }
+        .me:hover .delete-btn,
+        .me .msg-wrap:hover .delete-btn { opacity: 1; }
         @media (max-width: 768px) {
             .delete-btn { opacity: 0.5; }
         }
@@ -233,7 +222,6 @@
         }
         #send-btn:disabled { background: #4f545c; opacity: 0.5; }
         
-        /* 모달 공통 */
         .modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.7);
             display: none; align-items: center; justify-content: center;
@@ -264,10 +252,7 @@
         .btn-cancel { background: transparent; color: white; }
         .btn-confirm { background: #5865f2; color: white; }
         .btn-confirm:hover { background: #4752c4; }
-        .btn-danger { background: #ed4245; color: white; }
-        .btn-danger:hover { background: #c53639; }
         
-        /* 프로필 모달 */
         .profile-header {
             display: flex; flex-direction: column; align-items: center;
             margin-bottom: 20px;
@@ -294,7 +279,6 @@
         }
         .profile-info-row .label-text { color: #8e9297; font-size: 12px; margin-bottom: 2px; }
         
-        /* 이모지 선택 */
         .emoji-grid {
             display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
             margin: 12px 0; max-height: 180px; overflow-y: auto;
@@ -312,7 +296,6 @@
             margin: 8px 0; min-height: 18px;
         }
         
-        /* 모바일 */
         @media (max-width: 768px) {
             #sidebar {
                 position: fixed; top: 0; bottom: 0; left: 0;
@@ -330,7 +313,6 @@
     </style>
 </head>
 <body>
-    <!-- 로그인 -->
     <div id="login">
         <div id="login-box">
             <div class="form-title" id="form-title">💬 로그인</div>
@@ -342,7 +324,6 @@
         </div>
     </div>
     
-    <!-- 메인 -->
     <div id="app">
         <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
         
@@ -396,7 +377,6 @@
         </div>
     </div>
     
-    <!-- 방 만들기 -->
     <div id="create-modal" class="modal">
         <div class="modal-box">
             <h3>새 채팅방 만들기</h3>
@@ -409,7 +389,6 @@
         </div>
     </div>
     
-    <!-- 비번 입력 -->
     <div id="pw-modal" class="modal">
         <div class="modal-box">
             <h3 id="pw-modal-title">비밀번호 입력</h3>
@@ -421,7 +400,6 @@
         </div>
     </div>
     
-    <!-- 프로필 보기 -->
     <div id="profile-modal" class="modal">
         <div class="modal-box">
             <div class="profile-header">
@@ -449,7 +427,6 @@
         </div>
     </div>
     
-    <!-- 프로필 편집 -->
     <div id="edit-profile-modal" class="modal">
         <div class="modal-box">
             <h3>프로필 편집</h3>
@@ -476,12 +453,12 @@
     </div>
 
     <script>
-        // Supabase 클라이언트
+        // Supabase 클라이언트 (변수명 sb로 - supabase 충돌 방지)
         const SUPABASE_URL = '{{ supabase_url }}';
         const SUPABASE_KEY = '{{ supabase_key }}';
-        let supabase = null;
-        if (SUPABASE_URL && SUPABASE_KEY) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let sb = null;
+        if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
+            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         }
         
         let socket = null;
@@ -497,7 +474,6 @@
         let typingUsers = new Set();
         let isLoginMode = true;
         let viewingProfileNick = null;
-        let selectedEmoji = '😀';
         let editingAvatar = '😀';
         
         const EMOJIS = ['😀','😎','🤓','🥳','🤖','👻','🐱','🐶','🐼','🦊','🐸','🦄','🐲','🦁','🐯','🐰','🐻','🐧','🦋','🌸','🌺','🌻','🌷','🌹','⭐','🔥','💎','🎮','🎨','🎵','⚽','🏀','🚀','🛸','🌈','☀️','🌙','❄️','🍎','🍕','🍔','🍰','🎂','☕','🌍','🗻','🏖️','🏰'];
@@ -511,7 +487,6 @@
                 submitForm();
             }
             
-            // 이모지 그리드 채우기
             const grid = document.getElementById('emoji-grid');
             EMOJIS.forEach(emoji => {
                 const btn = document.createElement('button');
@@ -640,7 +615,6 @@
                 document.getElementById('send-btn').disabled = false;
                 document.getElementById('msg').focus();
                 
-                // 방 만든 사람만 삭제 버튼 보이기
                 if (data.type === 'room' && data.created_by === myNick) {
                     document.getElementById('delete-room-btn').style.display = 'block';
                 } else {
@@ -677,7 +651,7 @@
             });
             
             socket.on('message_deleted', (data) => {
-                const el = document.querySelector(`[data-msg-id="${data.msg_id}"]`);
+                const el = document.querySelector('[data-msg-id="' + data.msg_id + '"]');
                 if (el) el.remove();
             });
             
@@ -700,12 +674,10 @@
             list.forEach(room => {
                 const item = document.createElement('div');
                 item.className = 'item' + (room.id === currentRoom ? ' active' : '');
-                item.innerHTML = `
-                    <span class="icon">#</span>
-                    <span class="name">${escapeHtml(room.name)}</span>
-                    ${room.has_password ? '<span class="lock-icon">🔒</span>' : ''}
-                    <span class="count">${room.user_count}</span>
-                `;
+                item.innerHTML = '<span class="icon">#</span>' +
+                    '<span class="name">' + escapeHtml(room.name) + '</span>' +
+                    (room.has_password ? '<span class="lock-icon">🔒</span>' : '') +
+                    '<span class="count">' + room.user_count + '</span>';
                 item.onclick = () => joinRoom(room.id, room.has_password, room.name);
                 div.appendChild(item);
             });
@@ -719,10 +691,8 @@
                 if (user.nickname === myNick) return;
                 const item = document.createElement('div');
                 item.className = 'item';
-                item.innerHTML = `
-                    <span class="icon" style="color:#3ba55c;">●</span>
-                    <span class="name">${escapeHtml(user.nickname)}</span>
-                `;
+                item.innerHTML = '<span class="icon" style="color:#3ba55c;">●</span>' +
+                    '<span class="name">' + escapeHtml(user.nickname) + '</span>';
                 item.onclick = () => showProfile(user.nickname);
                 div.appendChild(item);
             });
@@ -731,7 +701,7 @@
         function joinRoom(roomId, hasPassword, roomName) {
             if (hasPassword) {
                 pendingJoinRoomId = roomId;
-                document.getElementById('pw-modal-title').textContent = `🔒 ${roomName}`;
+                document.getElementById('pw-modal-title').textContent = '🔒 ' + roomName;
                 document.getElementById('join-pw').value = '';
                 document.getElementById('pw-modal').classList.add('show');
                 document.getElementById('join-pw').focus();
@@ -795,7 +765,6 @@
             wrap.className = 'msg-wrap ' + (nickname === myNick ? 'me' : 'other');
             if (msgId) wrap.setAttribute('data-msg-id', msgId);
             
-            // 닉네임 줄 (other만)
             if (nickname !== myNick) {
                 const nickRow = document.createElement('div');
                 nickRow.className = 'nick-row';
@@ -821,7 +790,6 @@
                 wrap.appendChild(nickRow);
             }
             
-            // 말풍선 + 삭제 버튼
             const bubbleWrap = document.createElement('div');
             bubbleWrap.className = 'bubble-wrap';
             
@@ -831,7 +799,6 @@
             
             bubbleWrap.appendChild(bubble);
             
-            // 자기 메시지면 삭제 버튼
             if (nickname === myNick && msgId) {
                 const delBtn = document.createElement('button');
                 delBtn.className = 'delete-btn';
@@ -858,16 +825,15 @@
             const div = document.getElementById('typing-indicator');
             const arr = Array.from(typingUsers);
             if (arr.length === 0) div.textContent = '';
-            else if (arr.length === 1) div.textContent = `${arr[0]}님이 입력 중...`;
-            else if (arr.length === 2) div.textContent = `${arr[0]}, ${arr[1]}님이 입력 중...`;
-            else div.textContent = `${arr.length}명이 입력 중...`;
+            else if (arr.length === 1) div.textContent = arr[0] + '님이 입력 중...';
+            else if (arr.length === 2) div.textContent = arr[0] + ', ' + arr[1] + '님이 입력 중...';
+            else div.textContent = arr.length + '명이 입력 중...';
         }
         
-        // ===== 프로필 =====
         async function showProfile(nickname) {
             viewingProfileNick = nickname;
             try {
-                const res = await fetch(`/api/profile/${encodeURIComponent(nickname)}`);
+                const res = await fetch('/api/profile/' + encodeURIComponent(nickname));
                 const data = await res.json();
                 if (!res.ok) { alert(data.error); return; }
                 
@@ -887,11 +853,10 @@
                 if (data.created_at) {
                     const d = new Date(data.created_at);
                     document.getElementById('view-joined').textContent = 
-                        `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+                        d.getFullYear() + '년 ' + (d.getMonth()+1) + '월 ' + d.getDate() + '일';
                 }
                 document.getElementById('view-online').textContent = data.is_online ? '🟢 온라인' : '⚫ 오프라인';
                 
-                // 본인이면 편집 버튼, 남이면 DM 버튼
                 if (nickname === myNick) {
                     document.getElementById('profile-action-btn').style.display = 'none';
                     document.getElementById('profile-edit-btn').style.display = 'block';
@@ -910,7 +875,6 @@
         function hideProfileView() { document.getElementById('profile-modal').classList.remove('show'); }
         
         function profileAction() {
-            // DM 보내기
             socket.emit('start_dm', { nickname: viewingProfileNick });
             hideProfileView();
             hideSidebarMobile();
@@ -924,7 +888,6 @@
             document.getElementById('edit-status').value = myProfile.status;
             document.getElementById('upload-status').textContent = '';
             
-            // 이모지 선택 강조
             document.querySelectorAll('.emoji-btn').forEach(btn => {
                 btn.classList.toggle('selected', btn.textContent === myProfile.avatar);
             });
@@ -958,7 +921,7 @@
             const file = event.target.files[0];
             if (!file) return;
             
-            if (!supabase) {
+            if (!sb) {
                 alert('이미지 업로드를 사용할 수 없습니다 (설정 오류)');
                 return;
             }
@@ -973,15 +936,15 @@
             
             try {
                 const ext = file.name.split('.').pop();
-                const filename = `${myNick}_${Date.now()}.${ext}`;
+                const filename = myNick + '_' + Date.now() + '.' + ext;
                 
-                const { data, error } = await supabase.storage
+                const { data, error } = await sb.storage
                     .from('avatars')
                     .upload(filename, file, { upsert: true });
                 
                 if (error) throw error;
                 
-                const { data: urlData } = supabase.storage
+                const { data: urlData } = sb.storage
                     .from('avatars')
                     .getPublicUrl(filename);
                 
@@ -989,7 +952,6 @@
                 updateEditAvatar();
                 status.textContent = '✅ 업로드 완료';
                 
-                // 이모지 선택 해제
                 document.querySelectorAll('.emoji-btn').forEach(btn => btn.classList.remove('selected'));
             } catch(e) {
                 console.error(e);
@@ -1000,7 +962,7 @@
         async function saveProfile() {
             const pw = localStorage.getItem('pw');
             const bio = document.getElementById('edit-bio').value;
-            const status = document.getElementById('edit-status').value;
+            const statusVal = document.getElementById('edit-status').value;
             
             try {
                 const res = await fetch('/api/profile', {
@@ -1011,13 +973,13 @@
                         password: pw,
                         avatar: editingAvatar,
                         bio: bio,
-                        status: status
+                        status: statusVal
                     })
                 });
                 const data = await res.json();
                 if (!res.ok) { alert(data.error); return; }
                 
-                myProfile = { avatar: editingAvatar, bio: bio, status: status };
+                myProfile = { avatar: editingAvatar, bio: bio, status: statusVal };
                 renderMyProfile();
                 hideEditProfile();
                 alert('프로필이 저장되었습니다');
@@ -1026,7 +988,6 @@
             }
         }
         
-        // ===== 유틸 =====
         function playDing() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1058,7 +1019,6 @@
             document.getElementById('sidebar-overlay').classList.remove('show');
         }
         
-        // 입력 이벤트
         document.getElementById('msg').addEventListener('input', () => {
             if (!currentRoom) return;
             if (!isTyping) {
