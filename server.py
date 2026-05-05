@@ -12,18 +12,18 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# DB 연결 정보
 DATABASE_URL = os.environ.get('DATABASE_URL')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 
-# 메모리 캐시: 현재 접속한 사용자 (sid 단위)
-users = {}  # {sid: {nickname, current_room}}
-nick_to_sid = {}  # {nickname: sid}
-typing_state = {}  # {room_id: set of nicknames}
+# 메모리 캐시
+users = {}  # {sid: {nickname, user_id, current_room}}
+nick_to_sid = {}
+typing_state = {}
 
 
 @contextmanager
 def get_db():
-    """DB 커넥션 컨텍스트 매니저"""
     conn = psycopg2.connect(DATABASE_URL)
     try:
         yield conn
@@ -36,18 +36,15 @@ def get_db():
 
 
 def db_query(sql, params=None, fetch=False):
-    """간단한 DB 쿼리 헬퍼"""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(sql, params or ())
         if fetch:
-            result = cur.fetchall()
-            return [dict(r) for r in result]
+            return [dict(r) for r in cur.fetchall()]
         return None
 
 
 def db_query_one(sql, params=None):
-    """한 행만 가져오기"""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(sql, params or ())
@@ -56,20 +53,19 @@ def db_query_one(sql, params=None):
 
 
 def get_room_list():
-    """방 목록 (DB에서)"""
     rooms = db_query(
-        """SELECT id, name, password, created_at FROM rooms ORDER BY created_at DESC""",
+        """SELECT id, name, password, created_by, created_at FROM rooms ORDER BY created_at DESC""",
         fetch=True
     )
     result = []
     for r in rooms:
-        # 현재 접속자 수 계산 (메모리에서)
         user_count = sum(1 for u in users.values() if u.get('current_room') == r['id'])
         result.append({
             'id': r['id'],
             'name': r['name'],
             'has_password': bool(r['password']),
-            'user_count': user_count
+            'user_count': user_count,
+            'created_by': r['created_by']
         })
     return result
 
@@ -79,44 +75,62 @@ def get_user_list():
 
 
 def dm_room_id(nick1, nick2):
-    """DM 방 ID (양쪽 닉네임 정렬)"""
     return 'dm_' + '_'.join(sorted([nick1, nick2]))
 
 
-def save_message(room_id, nickname, msg):
-    """메시지 DB 저장"""
-    db_query(
-        """INSERT INTO messages (room_id, nickname, msg) VALUES (%s, %s, %s)""",
-        (room_id, nickname, msg)
+def save_message(room_id, user_id, nickname, msg):
+    """메시지 저장하고 ID 반환"""
+    result = db_query_one(
+        """INSERT INTO messages (room_id, user_id, nickname, msg) 
+           VALUES (%s, %s, %s, %s) RETURNING id, EXTRACT(EPOCH FROM created_at) as time""",
+        (room_id, user_id, nickname, msg)
     )
+    return {
+        'id': result['id'],
+        'time': float(result['time'])
+    }
 
 
 def get_recent_messages(room_id, limit=50):
-    """최근 메시지 조회"""
     msgs = db_query(
-        """SELECT nickname, msg, EXTRACT(EPOCH FROM created_at) as time
-           FROM messages WHERE room_id = %s 
-           ORDER BY created_at DESC LIMIT %s""",
+        """SELECT m.id, m.nickname, m.msg, m.user_id,
+                  EXTRACT(EPOCH FROM m.created_at) as time,
+                  u.avatar
+           FROM messages m
+           LEFT JOIN users u ON m.user_id = u.id
+           WHERE m.room_id = %s 
+           ORDER BY m.created_at DESC LIMIT %s""",
         (room_id, limit),
         fetch=True
     )
-    # Decimal -> float 변환 (JSON 직렬화 위해)
     for m in msgs:
         if m.get('time') is not None:
             m['time'] = float(m['time'])
-    # 오래된 것부터 정렬
     msgs.reverse()
     return msgs
 
 
+def get_user_profile(nickname):
+    """프로필 조회"""
+    user = db_query_one(
+        """SELECT id, nickname, avatar, bio, status, created_at FROM users WHERE nickname = %s""",
+        (nickname,)
+    )
+    if user:
+        user['created_at'] = user['created_at'].isoformat() if user.get('created_at') else None
+        user['is_online'] = nickname in nick_to_sid
+    return user
+
+
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', 
+                         supabase_url=SUPABASE_URL, 
+                         supabase_key=SUPABASE_KEY)
 
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    """회원가입"""
     data = request.json
     nickname = data.get('nickname', '').strip()
     password = data.get('password', '')
@@ -128,12 +142,10 @@ def register():
     if len(password) < 4:
         return jsonify({'error': '비밀번호는 4자 이상'}), 400
     
-    # 중복 체크
     existing = db_query_one("SELECT id FROM users WHERE nickname = %s", (nickname,))
     if existing:
         return jsonify({'error': '이미 사용중인 닉네임입니다'}), 400
     
-    # 가입
     pw_hash = generate_password_hash(password)
     db_query(
         """INSERT INTO users (nickname, password) VALUES (%s, %s)""",
@@ -144,7 +156,6 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    """로그인"""
     data = request.json
     nickname = data.get('nickname', '').strip()
     password = data.get('password', '')
@@ -156,7 +167,46 @@ def login():
     if not check_password_hash(user['password'], password):
         return jsonify({'error': '비밀번호가 틀렸습니다'}), 400
     
-    return jsonify({'success': True, 'nickname': nickname})
+    return jsonify({
+        'success': True, 
+        'nickname': nickname,
+        'user_id': user['id'],
+        'avatar': user.get('avatar', '😀'),
+        'bio': user.get('bio', ''),
+        'status': user.get('status', '')
+    })
+
+
+@app.route('/api/profile/<nickname>')
+def get_profile(nickname):
+    """프로필 조회"""
+    profile = get_user_profile(nickname)
+    if not profile:
+        return jsonify({'error': '사용자를 찾을 수 없습니다'}), 404
+    return jsonify(profile)
+
+
+@app.route('/api/profile', methods=['POST'])
+def update_profile():
+    """프로필 수정"""
+    data = request.json
+    nickname = data.get('nickname', '').strip()
+    password = data.get('password', '')
+    
+    # 비밀번호 확인
+    user = db_query_one("SELECT * FROM users WHERE nickname = %s", (nickname,))
+    if not user or not check_password_hash(user['password'], password):
+        return jsonify({'error': '인증 실패'}), 401
+    
+    avatar = data.get('avatar', '😀')[:500]
+    bio = data.get('bio', '')[:100]
+    status = data.get('status', '')[:50]
+    
+    db_query(
+        """UPDATE users SET avatar = %s, bio = %s, status = %s WHERE nickname = %s""",
+        (avatar, bio, status, nickname)
+    )
+    return jsonify({'success': True})
 
 
 @socketio.on('connect')
@@ -175,7 +225,6 @@ def handle_disconnect():
     
     if current_room:
         emit('system', f'{nickname}님이 나갔습니다', room=current_room)
-        # 입력 중 상태 제거
         if current_room in typing_state:
             typing_state[current_room].discard(nickname)
     
@@ -191,21 +240,24 @@ def handle_disconnect():
 
 @socketio.on('connect_user')
 def handle_connect_user(data):
-    """로그인 후 socket 연결"""
     sid = request.sid
     nickname = data.get('nickname', '').strip()
+    user_id = data.get('user_id')
     
     if not nickname:
         return
     
-    # 이미 접속한 같은 닉네임 있으면 끊어내기
     if nickname in nick_to_sid:
         old_sid = nick_to_sid[nickname]
         if old_sid != sid:
             socketio.emit('force_logout', '다른 곳에서 로그인되었습니다', room=old_sid)
             users.pop(old_sid, None)
     
-    users[sid] = {'nickname': nickname, 'current_room': None}
+    users[sid] = {
+        'nickname': nickname, 
+        'user_id': user_id,
+        'current_room': None
+    }
     nick_to_sid[nickname] = sid
     
     emit('user_list', get_user_list(), broadcast=True)
@@ -242,6 +294,68 @@ def handle_create_room(data):
     print(f'[방생성] {name} by {creator}')
 
 
+@socketio.on('delete_room')
+def handle_delete_room(data):
+    """방 삭제 (만든 사람만)"""
+    sid = request.sid
+    if sid not in users:
+        return
+    
+    room_id = data.get('room_id')
+    if not room_id:
+        return
+    
+    room = db_query_one("SELECT * FROM rooms WHERE id = %s", (room_id,))
+    if not room:
+        emit('error_msg', '존재하지 않는 방입니다')
+        return
+    
+    nickname = users[sid]['nickname']
+    if room['created_by'] != nickname:
+        emit('error_msg', '방을 만든 사람만 삭제할 수 있습니다')
+        return
+    
+    # 방 안에 있는 사람들 강퇴
+    for s, u in list(users.items()):
+        if u.get('current_room') == room_id:
+            socketio.emit('room_deleted', {'message': '방이 삭제되었습니다'}, room=s)
+            users[s]['current_room'] = None
+    
+    # 메시지 + 방 삭제
+    db_query("DELETE FROM messages WHERE room_id = %s", (room_id,))
+    db_query("DELETE FROM rooms WHERE id = %s", (room_id,))
+    
+    emit('room_list', get_room_list(), broadcast=True)
+    print(f'[방삭제] {room["name"]} by {nickname}')
+
+
+@socketio.on('delete_message')
+def handle_delete_message(data):
+    """메시지 삭제 (자기 메시지만)"""
+    sid = request.sid
+    if sid not in users:
+        return
+    
+    msg_id = data.get('msg_id')
+    if not msg_id:
+        return
+    
+    msg = db_query_one("SELECT * FROM messages WHERE id = %s", (msg_id,))
+    if not msg:
+        return
+    
+    nickname = users[sid]['nickname']
+    if msg['nickname'] != nickname:
+        emit('error_msg', '자기 메시지만 삭제할 수 있습니다')
+        return
+    
+    db_query("DELETE FROM messages WHERE id = %s", (msg_id,))
+    
+    # 같은 방에 있는 사람들한테 알림
+    emit('message_deleted', {'msg_id': msg_id}, room=msg['room_id'])
+    print(f'[메시지삭제] id={msg_id} by {nickname}')
+
+
 @socketio.on('join_room')
 def handle_join(data):
     sid = request.sid
@@ -262,7 +376,6 @@ def handle_join(data):
     
     nickname = users[sid]['nickname']
     
-    # 이전 방 나가기
     old_room = users[sid].get('current_room')
     if old_room:
         leave_room(old_room)
@@ -273,14 +386,14 @@ def handle_join(data):
     join_room(room_id)
     users[sid]['current_room'] = room_id
     
-    # 이전 메시지 불러오기
     messages = get_recent_messages(room_id)
     
     emit('join_success', {
         'room_id': room_id,
         'room_name': room['name'],
         'type': 'room',
-        'history': messages
+        'history': messages,
+        'created_by': room['created_by']
     })
     emit('system', f'{nickname}님이 입장했습니다', room=room_id)
     emit('room_list', get_room_list(), broadcast=True)
@@ -306,7 +419,6 @@ def handle_start_dm(data):
     target_sid = nick_to_sid[target_nick]
     dm_id = dm_room_id(my_nick, target_nick)
     
-    # 이전 방 나가기
     old_room = users[sid].get('current_room')
     if old_room:
         leave_room(old_room)
@@ -317,10 +429,8 @@ def handle_start_dm(data):
     join_room(dm_id)
     users[sid]['current_room'] = dm_id
     
-    # 상대방도 DM 방에 참여시키기
     socketio.server.enter_room(target_sid, dm_id)
     
-    # 이전 DM 메시지 불러오기
     messages = get_recent_messages(dm_id)
     
     emit('join_success', {
@@ -348,14 +458,21 @@ def handle_message(data):
         return
     
     nickname = users[sid]['nickname']
+    user_id = users[sid].get('user_id')
     
-    # DB에 저장
-    save_message(current_room, nickname, msg)
+    # DB 저장 + ID 받기
+    saved = save_message(current_room, user_id, nickname, msg)
+    
+    # 사용자 아바타도 같이 가져오기
+    user_data = db_query_one("SELECT avatar FROM users WHERE id = %s", (user_id,))
+    avatar = user_data.get('avatar', '😀') if user_data else '😀'
     
     emit('message', {
+        'id': saved['id'],
         'nickname': nickname,
         'msg': msg,
-        'time': time.time()
+        'time': saved['time'],
+        'avatar': avatar
     }, room=current_room)
     print(f'[메시지][{current_room}] {nickname}: {msg}')
 
